@@ -8,7 +8,13 @@ const app = express();
 
 
 // middleware
-app.use(cors());
+app.use(
+    cors({
+      origin: "http://localhost:5173",
+      credentials: true, 
+    })
+  );
+//   
 app.use(express.json());
 
 
@@ -29,7 +35,40 @@ const startServer =async()=>{
      const taskCollection = db.collection('tasks');
      const userCollection = db.collection('users'); 
          
-        
+     
+    // crud  oparation
+    app.post('/tasks', async (req, res) => {
+        try {
+            const { title, description, category, } = req.body;
+           if (!title || title.length > 50) {
+             return res.status(400).json({ error: 'Title is required and must be less than 50 characters' });
+           }
+         
+           if (description && description.length > 200) {
+             return res.status(400).json({ error: 'Description must be less than 200 characters' });
+           }
+         
+           const newTask = {
+             title,
+             description: description || '',
+             category: category || 'To-Do',
+             
+             timestamp: new Date(),
+           };
+          const result = await taskCollection.insertOne(newTask);
+          res.status(201).json(result);
+        } catch (err) {
+          res.status(500).json({ error: 'Failed to create task' });
+        }
+      }); 
+
+
+
+
+
+
+
+
 
 
     // 
