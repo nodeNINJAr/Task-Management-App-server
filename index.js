@@ -36,10 +36,27 @@ const startServer =async()=>{
      const userCollection = db.collection('users'); 
          
      
-    // crud  oparation
+    // crud  oparation ***
+
+
+    // save user data to database 
+    app.post('/users', async (req, res)=>{
+         const userInfo = req?.body;
+          // 
+         if(!userInfo) return
+         const isExist = await userCollection.findOne({email:userInfo?.email});
+         if(isExist){
+          return res.status(403).send({message:"conflict"})
+         }
+         const result = await userCollection.insertOne(userInfo);
+         res.send(result);
+
+    })
+
+    // post task
     app.post('/tasks', async (req, res) => {
         try {
-            const { title, description, category, } = req.body;
+            const { title, description, category,uid } = req.body;
            if (!title || title.length > 50) {
              return res.status(400).json({ error: 'Title is required and must be less than 50 characters' });
            }
@@ -52,8 +69,8 @@ const startServer =async()=>{
              title,
              description: description || '',
              category: category || 'To-Do',
-             
-             timestamp: new Date(),
+             uid,
+             timestamp: new Date().toISOString(),
            };
           const result = await taskCollection.insertOne(newTask);
           res.status(201).json(result);
@@ -62,11 +79,17 @@ const startServer =async()=>{
         }
       }); 
 
-
-
-
-
-
+    //   get user all the task
+      app.get('/tasks', async (req, res) => {
+        const { uid } = req.query;
+        // 
+        try {
+          const tasks = await taskCollection.find({ uid }).toArray();
+          res.json(tasks);
+        } catch (err) {
+          res.status(500).json({ error: 'Failed to fetch tasks' });
+        }
+      });
 
 
 
