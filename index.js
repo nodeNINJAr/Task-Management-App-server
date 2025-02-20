@@ -4,9 +4,10 @@ const cors = require("cors");
 const { connectToDatabase, getDb } = require("./database/db");
 const http = require("http");
 const { Server } = require("socket.io");
-const { ObjectId } = require('mongodb'); // Add this at the top
-
+const { ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
+
+
 
 // Express app and HTTP server
 const app = express();
@@ -34,7 +35,7 @@ const startServer = async () => {
     const taskCollection = db.collection("tasks");
     // const userCollection = db.collection("users");
 
-    // WebSocket Connection
+    // ** WebSocket Connection **
     io.on("connection", (socket) => {
       console.log("User connected:", socket.id);
 
@@ -42,7 +43,8 @@ const startServer = async () => {
         console.log("User disconnected:", socket.id);
       });
     });
-    
+
+    // ** post the data to task **
     app.post('/tasks', async (req, res) => {
       // 
       try {
@@ -54,7 +56,6 @@ const startServer = async () => {
           if (description && description.length > 200) {
               return res.status(400).json({ error: 'Description must be less than 200 characters' });
           }
-  
           // Fetch the highest position in the given category
           const lastTask = await taskCollection.find({ category }).sort({ position: -1 }).limit(1).toArray();
           const lastPosition = lastTask.length > 0 ? lastTask[0].position : 0;
@@ -65,7 +66,7 @@ const startServer = async () => {
               category: category || 'To-Do',
               uid,
               position: parseInt(lastPosition) + 1, // Set the next available position
-              timestamp: new Date().toISOString(),
+              timestamp: new Date().toLocaleDateString(),
           };
   
           const result = await taskCollection.insertOne(newTask);
@@ -76,7 +77,6 @@ const startServer = async () => {
   });
   
   
-
     // ** GET: Retrieve all tasks for a user **
     app.get('/tasks', async (req, res) => {
       const { uid } = req.query;
@@ -117,8 +117,21 @@ const startServer = async () => {
         res.status(500).json({ error: "Failed to reorder tasks" });
       }
     });
+    
+    // ** Delete Task
+    app.delete("/task/:id", async(req, res)=>{
+      const id = req?.params?.id;
+      const query = {_id : new ObjectId(id)}
+      const result = await taskCollection.deleteOne(query);
+      res.send(result);
+    })
 
     
+
+
+
+
+
     
     // ** Home Route **
     app.get("/", (req, res) => {
