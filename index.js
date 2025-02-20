@@ -13,13 +13,20 @@ const port = process.env.PORT || 5000;
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "http://localhost:5173" },
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "https://task-manager-c5ec9.web.app",
+      "https://task-manager-c5ec9.firebaseapp.com",
+    ],
+    credentials: true,
+  },
 });
 
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173","https://task-manager-c5ec9.web.app","https://task-manager-c5ec9.firebaseapp.com"],
     credentials: true,
   })
 );
@@ -88,9 +95,9 @@ const startServer = async () => {
     // ** GET: Retrieve all tasks for a user **
     app.get('/tasks', async (req, res) => {
       const { uid } = req.query;
-      console.log(uid);
+      // 
       try {
-          const tasks = await taskCollection.find({ uid }).sort({ position: 1 }).toArray();
+          const tasks = await taskCollection.find({ uid }).sort({position:1}).toArray();
           res.json(tasks);
       } catch (err) {
           res.status(500).json({ error: 'Failed to fetch tasks' });
