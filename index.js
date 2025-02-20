@@ -44,7 +44,7 @@ const startServer = async () => {
       });
     });
 
-    // ** post the data to task **
+    // ** Post the data to task **
     app.post('/tasks', async (req, res) => {
       // 
       try {
@@ -87,9 +87,28 @@ const startServer = async () => {
           res.status(500).json({ error: 'Failed to fetch tasks' });
       }
   });
-  
+   
+  // ** Update by user
+   app.put('/tasks/:id', async(req,res)=>{
+       const id = req?.params?.id;
+       const filter = {_id: new ObjectId(id)};
+       const taskData = req?.body;
+       //  
+       const update = {
+        $set: {
+          title: taskData.title,
+          description: taskData.description,
+          category: taskData.category,
+        },
+      };
+      const result = await taskCollection.updateOne(filter, update);
+      res.send(result)
+     
+   })
+
+
     // ** Update Order **
-    app.put("/tasks/reorder", async (req, res) => {
+    app.put("/task/reorder", async (req, res) => {
       try {
         const { tasks } = req.body;
         // 
@@ -126,12 +145,7 @@ const startServer = async () => {
       res.send(result);
     })
 
-    
-
-
-
-
-
+  
     
     // ** Home Route **
     app.get("/", (req, res) => {
