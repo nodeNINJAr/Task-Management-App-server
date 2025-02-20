@@ -42,7 +42,7 @@ const startServer = async () => {
         console.log("User disconnected:", socket.id);
       });
     });
-
+    
     app.post('/tasks', async (req, res) => {
       // 
       try {
@@ -88,7 +88,35 @@ const startServer = async () => {
       }
   });
   
-
+    // ** Update Order **
+    app.put("/tasks/reorder", async (req, res) => {
+      try {
+        const { tasks } = req.body;
+        // 
+        if (!tasks || !Array.isArray(tasks)) {
+          return res.status(400).json({ error: "Invalid task data" });
+        }
+    
+        const bulkUpdates = tasks.map((task) => ({
+          updateOne: {
+            filter: { _id: new ObjectId(task._id) }, 
+            update: { $set: { position: task.position, category: task.category } },
+          },
+        }));
+    
+        if (bulkUpdates.length === 0) {
+          return res.status(400).json({ error: "No valid tasks to update" });
+        }
+    
+        await taskCollection.bulkWrite(bulkUpdates);
+        io.emit("task-updated"); 
+        res.json({ message: "Tasks reordered successfully" });
+    
+      } catch (err) {
+        console.error("Error updating task order:", err);
+        res.status(500).json({ error: "Failed to reorder tasks" });
+      }
+    });
 
     
     
