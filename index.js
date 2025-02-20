@@ -18,6 +18,7 @@ const io = new Server(server, {
       "http://localhost:5173",
       "https://task-manager-c5ec9.web.app",
       "https://task-manager-c5ec9.firebaseapp.com",
+      "https://taskly-tm.netlify.app"
     ],
     credentials: true,
   },
@@ -26,7 +27,7 @@ const io = new Server(server, {
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173","https://task-manager-c5ec9.web.app","https://task-manager-c5ec9.firebaseapp.com"],
+    origin: ["http://localhost:5173","https://task-manager-c5ec9.web.app","https://task-manager-c5ec9.firebaseapp.com","https://taskly-tm.netlify.app"],
     credentials: true,
   })
 );
