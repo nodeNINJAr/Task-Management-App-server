@@ -1,115 +1,112 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { connectToDatabase, getDb } = require('./database/db');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const { connectToDatabase, getDb } = require("./database/db");
+const http = require("http");
+const { Server } = require("socket.io");
+const { ObjectId } = require('mongodb'); // Add this at the top
+
 const port = process.env.PORT || 5000;
-// server
+
+// Express app and HTTP server
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "http://localhost:5173" },
+});
 
-
-// middleware
+// Middleware
 app.use(
-    cors({
-      origin: "http://localhost:5173",
-      credentials: true, 
-    })
-  );
-//   
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectToDatabase();
+    console.log("MongoDB connection established");
 
+    const db = getDb();
+    const taskCollection = db.collection("tasks");
+    // const userCollection = db.collection("users");
 
+    // WebSocket Connection
+    io.on("connection", (socket) => {
+      console.log("User connected:", socket.id);
 
-// 
-const startServer =async()=>{
-   
-    try{
-    // Connect to mongoDD
-    await  connectToDatabase()
-    console.log('MongoDB connection established');
-    
-     // Get the database instance
-     const db = getDb();
+      socket.on("disconnect", () => {
+        console.log("User disconnected:", socket.id);
+      });
+    });
 
-     // Assign collections
-     const taskCollection = db.collection('tasks');
-     const userCollection = db.collection('users'); 
-         
-     
-    // crud  oparation ***
-
-
-    // save user data to database 
-    app.post('/users', async (req, res)=>{
-         const userInfo = req?.body;
-          // 
-         if(!userInfo) return
-         const isExist = await userCollection.findOne({email:userInfo?.email});
-         if(isExist){
-          return res.status(403).send({message:"conflict"})
-         }
-         const result = await userCollection.insertOne(userInfo);
-         res.send(result);
-
-    })
-
-    // post task
     app.post('/tasks', async (req, res) => {
-        try {
-            const { title, description, category,uid } = req.body;
-           if (!title || title.length > 50) {
-             return res.status(400).json({ error: 'Title is required and must be less than 50 characters' });
-           }
-         
-           if (description && description.length > 200) {
-             return res.status(400).json({ error: 'Description must be less than 200 characters' });
-           }
-         
-           const newTask = {
-             title,
-             description: description || '',
-             category: category || 'To-Do',
-             uid,
-             timestamp: new Date().toISOString(),
-           };
+      // 
+      try {
+          const { title, description, category, uid } = req.body;
+          if (!title || title.length > 50) {
+              return res.status(400).json({ error: 'Title is required and must be less than 50 characters' });
+          }
+  
+          if (description && description.length > 200) {
+              return res.status(400).json({ error: 'Description must be less than 200 characters' });
+          }
+  
+          // Fetch the highest position in the given category
+          const lastTask = await taskCollection.find({ category }).sort({ position: -1 }).limit(1).toArray();
+          const lastPosition = lastTask.length > 0 ? lastTask[0].position : 0;
+  
+          const newTask = {
+              title,
+              description: description || '',
+              category: category || 'To-Do',
+              uid,
+              position: parseInt(lastPosition) + 1, // Set the next available position
+              timestamp: new Date().toISOString(),
+          };
+  
           const result = await taskCollection.insertOne(newTask);
           res.status(201).json(result);
-        } catch (err) {
+      } catch (err) {
           res.status(500).json({ error: 'Failed to create task' });
-        }
-      }); 
-
-    //   get user all the task
-      app.get('/tasks', async (req, res) => {
-        const { uid } = req.query;
-        // 
-        try {
-          const tasks = await taskCollection.find({ uid }).toArray();
-          res.json(tasks);
-        } catch (err) {
-          res.status(500).json({ error: 'Failed to fetch tasks' });
-        }
-      });
-
-
-
-
-    // 
-    app.get('/', (req,res)=>{
-    res.send('task management application server running')
-    })
-
-    app.listen(port,()=>{
-        console.log(`Task Management Application server is running on port ${port}`);
-    })
-
-    }
-    catch (err) {
-        console.error('Failed to connect to MongoDB', err);
-        process.exit(1);
       }
-}
+  });
+  
+  
+
+    // ** GET: Retrieve all tasks for a user **
+    app.get('/tasks', async (req, res) => {
+      const { uid } = req.query;
+      try {
+          const tasks = await taskCollection.find({ uid }).sort({ position: 1 }).toArray();
+          res.json(tasks);
+      } catch (err) {
+          res.status(500).json({ error: 'Failed to fetch tasks' });
+      }
+  });
+  
 
 
-// Call the function to start the server
+    
+    
+    // ** Home Route **
+    app.get("/", (req, res) => {
+      res.send("Task management application server running");
+    });
+
+    // Start Server
+    server.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
+
+  } catch (err) {
+    console.error("Failed to connect to MongoDB", err);
+    process.exit(1);
+  }
+};
+
+// Start the Server
 startServer();
