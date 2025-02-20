@@ -33,7 +33,7 @@ const startServer = async () => {
 
     const db = getDb();
     const taskCollection = db.collection("tasks");
-    // const userCollection = db.collection("users");
+    const userCollection = db.collection("users");
 
     // ** WebSocket Connection **
     io.on("connection", (socket) => {
@@ -75,11 +75,20 @@ const startServer = async () => {
           res.status(500).json({ error: 'Failed to create task' });
       }
   });
-  
-  
+   
+    // **  Post User info to db
+    app.post('/users', async(req,res)=>{
+      const userInfo = req.body;
+      const isExist = await userCollection.findOne({email:userInfo?.email});
+       if(isExist) return res.status(403).send({message:"user conflicted"})
+      const result = await userCollection.insertOne(userInfo);
+      res.send(result);
+    }) 
+
     // ** GET: Retrieve all tasks for a user **
     app.get('/tasks', async (req, res) => {
       const { uid } = req.query;
+      console.log(uid);
       try {
           const tasks = await taskCollection.find({ uid }).sort({ position: 1 }).toArray();
           res.json(tasks);
