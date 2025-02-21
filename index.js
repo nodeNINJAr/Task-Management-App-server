@@ -121,7 +121,7 @@ const startServer = async () => {
               category: category || 'To-Do',
               uid,
               position: parseInt(lastPosition) + 1, // Set the next available position
-              timestamp: new Date().toLocaleDateString(),
+              timestamp: new Date(),
           };
   
           const result = await taskCollection.insertOne(newTask);
