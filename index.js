@@ -51,7 +51,7 @@ const startServer = async () => {
   try {
     // Connect to MongoDB
     await connectToDatabase();
-    console.log("MongoDB connection established");
+    // console.log("MongoDB connection established");
 
     const db = getDb();
     const taskCollection = db.collection("tasks");
@@ -103,7 +103,7 @@ const startServer = async () => {
     app.post('/tasks',verifyToken, async (req, res) => {
       // 
       try {
-          const { title, description, category, uid } = req.body;
+          const { title, description, category, uid,dueDate } = req.body;
           if (!title || title.length > 50) {
               return res.status(400).json({ error: 'Title is required and must be less than 50 characters' });
           }
@@ -122,6 +122,7 @@ const startServer = async () => {
               uid,
               position: parseInt(lastPosition) + 1, // Set the next available position
               timestamp: new Date(),
+              dueDate:dueDate,
           };
   
           const result = await taskCollection.insertOne(newTask);
@@ -154,12 +155,21 @@ const startServer = async () => {
        const id = req?.params?.id;
        const filter = {_id: new ObjectId(id)};
        const taskData = req?.body;
+      //  
+         if (!taskData?.title || taskData?.title.length > 50) {
+              return res.status(400).json({ error: 'Title is required and must be less than 50 characters' });
+          }
+
+          if (taskData.description && taskData?.description?.length > 200) {
+              return res.status(400).json({ error: 'Description must be less than 200 characters' });
+          }
        //  
        const update = {
         $set: {
           title: taskData.title,
           description: taskData.description,
           category: taskData.category,
+          dueDate:taskData?.dueDate,
         },
       };
       const result = await taskCollection.updateOne(filter, update);
@@ -193,7 +203,7 @@ const startServer = async () => {
         res.json({ message: "Tasks reordered successfully" });
     
       } catch (err) {
-        console.error("Error updating task order:", err);
+        // console.error("Error updating task order:", err);
         res.status(500).json({ error: "Failed to reorder tasks" });
       }
     });
@@ -243,11 +253,11 @@ const startServer = async () => {
 
     // Start Server
     app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+      // console.log(`Server running on port ${port}`);
     });
 
   } catch (err) {
-    console.error("Failed to connect to MongoDB", err);
+    // console.error("Failed to connect to MongoDB", err);
     process.exit(1);
   }
 };
