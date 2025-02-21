@@ -11,27 +11,26 @@ const port = process.env.PORT || 5000;
 
 // Express app and HTTP server
 const app = express();
+
+// ** Middleware **
+app.use(
+  cors({ origin: ["http://localhost:5173","https://task-manager-c5ec9.web.app","https://task-manager-c5ec9.firebaseapp.com","https://taskly-tm.netlify.app",
+  ]
+  // credentials: true,
+})
+);
+
+// ** HTTP Server and WebSocket **
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://task-manager-c5ec9.web.app",
-      "https://task-manager-c5ec9.firebaseapp.com",
-      "https://taskly-tm.netlify.app"
-    ],
-    credentials: true,
-  },
-});
-
-// Middleware
-app.use(
-  cors({
-    origin: ["http://localhost:5173","https://task-manager-c5ec9.web.app","https://task-manager-c5ec9.firebaseapp.com","https://taskly-tm.netlify.app"],
-    credentials: true,
+  cors:({
+    origin: ["https://task-manager-c5ec9.web.app","http://localhost:5173","https://task-manager-c5ec9.firebaseapp.com","https://taskly-tm.netlify.app"]
+    // credentials: true,
   })
-);
+});
 app.use(express.json());
+
+// 
 
 const startServer = async () => {
   try {
@@ -46,6 +45,8 @@ const startServer = async () => {
     // ** WebSocket Connection **
     io.on("connection", (socket) => {
       console.log("User connected:", socket.id);
+  
+      // 
 
       socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
@@ -84,6 +85,7 @@ const startServer = async () => {
       }
   });
    
+
     // **  Post User info to db
     app.post('/users', async(req,res)=>{
       const userInfo = req.body;
