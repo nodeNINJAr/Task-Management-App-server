@@ -6,6 +6,9 @@ const http = require("http");
 const { Server } = require("socket.io");
 const { ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+
 
 
 
@@ -14,21 +17,33 @@ const app = express();
 
 // ** Middleware **
 app.use(
-  cors({ origin: ["http://localhost:5173","https://task-manager-c5ec9.web.app","https://task-manager-c5ec9.firebaseapp.com","https://taskly-tm.netlify.app",
-  ]
-  // credentials: true,
-})
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://task-manager-c5ec9.web.app",
+      "https://task-manager-c5ec9.firebaseapp.com",
+      "https://taskly-tm.netlify.app"
+    ],
+    credentials: true,
+  })
 );
 
-// ** HTTP Server and WebSocket **
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors:({
-    origin: ["https://task-manager-c5ec9.web.app","http://localhost:5173","https://task-manager-c5ec9.firebaseapp.com","https://taskly-tm.netlify.app"]
-    // credentials: true,
-  })
-});
+  // ** HTTP Server and WebSocket **
+  const server = http.createServer(app);
+  const io = new Server(server, {
+    cors:({
+      origin: [
+        "http://localhost:5173",
+        "https://task-manager-c5ec9.web.app",
+        "https://task-manager-c5ec9.firebaseapp.com",
+        "https://taskly-tm.netlify.app"
+      ],
+      credentials: true,
+    })
+  });
+
 app.use(express.json());
+app.use(cookieParser());
 
 // 
 
@@ -47,14 +62,45 @@ const startServer = async () => {
       console.log("User connected:", socket.id);
   
       // 
-
       socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
       });
     });
 
+
+
+  // **  middleware for user verify **
+  const verifyToken = async(req,res, next)=>{
+    const token = req?.cookies?.token;
+    // validate if token is not available
+    if(!token){
+      return res.status(401).json({message:'Access denied. No token provided.'})
+    }
+    // verify if token have than sent,if not than err
+    try{
+      const decoded = jwt.verify(token,process.env.SECRET_KEY);
+      req.user = decoded;
+      next()
+    }
+    catch(err){
+      return res.status(401).json(({ message: 'Invalid or expired token.' }));
+    }
+
+  }
+
+
+   // **  Post User info to db
+   app.post('/users', async(req,res)=>{
+    const userInfo = req.body;
+    const isExist = await userCollection.findOne({email:userInfo?.email});
+     if(isExist) return res.status(403).send({message:"user conflicted"})
+    const result = await userCollection.insertOne(userInfo);
+    res.send(result);
+  }) 
+
+
     // ** Post the data to task **
-    app.post('/tasks', async (req, res) => {
+    app.post('/tasks',verifyToken, async (req, res) => {
       // 
       try {
           const { title, description, category, uid } = req.body;
@@ -86,18 +132,14 @@ const startServer = async () => {
   });
    
 
-    // **  Post User info to db
-    app.post('/users', async(req,res)=>{
-      const userInfo = req.body;
-      const isExist = await userCollection.findOne({email:userInfo?.email});
-       if(isExist) return res.status(403).send({message:"user conflicted"})
-      const result = await userCollection.insertOne(userInfo);
-      res.send(result);
-    }) 
-
     // ** GET: Retrieve all tasks for a user **
-    app.get('/tasks', async (req, res) => {
+    app.get('/tasks',verifyToken, async (req, res) => {
       const { uid } = req.query;
+      const verifiedUid = req?.user?.uid;
+      //  check is user is real by login
+       if(uid !== verifiedUid){
+            return res.status(403).send({message:"Forbidden Access"})
+       }
       // 
       try {
           const tasks = await taskCollection.find({ uid }).sort({position:1}).toArray();
@@ -108,7 +150,7 @@ const startServer = async () => {
   });
    
   // ** Update by user
-   app.put('/tasks/:id', async(req,res)=>{
+   app.put('/tasks/:id',verifyToken, async(req,res)=>{
        const id = req?.params?.id;
        const filter = {_id: new ObjectId(id)};
        const taskData = req?.body;
@@ -127,7 +169,7 @@ const startServer = async () => {
 
 
     // ** Update Order **
-    app.put("/task/reorder", async (req, res) => {
+    app.put("/task/reorder",verifyToken, async (req, res) => {
       try {
         const { tasks } = req.body;
         // 
@@ -155,9 +197,11 @@ const startServer = async () => {
         res.status(500).json({ error: "Failed to reorder tasks" });
       }
     });
-    
+
+
+
     // ** Delete Task
-    app.delete("/task/:id", async(req, res)=>{
+    app.delete("/task/:id",verifyToken, async(req, res)=>{
       const id = req?.params?.id;
       const query = {_id : new ObjectId(id)}
       const result = await taskCollection.deleteOne(query);
@@ -165,6 +209,32 @@ const startServer = async () => {
     })
 
   
+
+   // **Login route to jwt **
+    app.post('/login', async(req, res) => {
+      const userInfo = req.body;
+      // authentication
+      if (!userInfo?.email || !userInfo?.uid) {
+         return  res.status(401).json({ message: 'Invalid credentials' });
+      }
+    const token = jwt.sign(userInfo, process.env.SECRET_KEY, { expiresIn: '1d' });
+     // Set the JWT in a cookie
+     res.cookie('token', token,
+       { httpOnly: true, secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
+      }).send({ message: 'Logged in successfully' })
+      
+    });
+
+
+    // Logout route
+    app.post('/logout', (req, res) => {
+      // Clear the token cookie
+      res.clearCookie('token');
+      res.json({ message: 'Logged out successfully' });
+    });
+
+
     
     // ** Home Route **
     app.get("/", (req, res) => {
@@ -172,7 +242,7 @@ const startServer = async () => {
     });
 
     // Start Server
-    server.listen(port, () => {
+    app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });
 
