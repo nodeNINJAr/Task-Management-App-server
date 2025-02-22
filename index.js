@@ -59,14 +59,17 @@ const startServer = async () => {
 
     // ** WebSocket Connection **
     io.on("connection", (socket) => {
-      console.log("User connected:", socket.id);
-  
-      // 
+      console.log("A user connected:", socket.id);
+    
+      socket.on("join-room", (uid) => {
+        socket.join(uid);
+        console.log(`User ${uid} joined room`);
+      });
+    
       socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
       });
     });
-
 
 
   // **  middleware for user verify **
