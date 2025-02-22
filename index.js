@@ -133,22 +133,42 @@ const startServer = async () => {
   });
    
 
-    // ** GET: Retrieve all tasks for a user **
-    app.get('/tasks',verifyToken, async (req, res) => {
-      const { uid } = req.query;
-      const verifiedUid = req?.user?.uid;
-      //  check is user is real by login
-       if(uid !== verifiedUid){
-            return res.status(403).send({message:"Forbidden Access"})
-       }
-      // 
-      try {
-          const tasks = await taskCollection.find({ uid }).sort({position:1}).toArray();
-          res.json(tasks);
-      } catch (err) {
-          res.status(500).json({ error: 'Failed to fetch tasks' });
-      }
+
+
+
+  app.get('/tasks', verifyToken, async (req, res) => {
+    const { uid } = req.query;
+    const verifiedUid = req?.user?.uid;
+  
+    if (uid !== verifiedUid) {
+      return res.status(403).send({ message: "Forbidden Access" });
+    }
+  
+    try {
+      const tasks = await taskCollection.find({ uid }).sort({ position: 1 }).toArray();
+      res.json(tasks);
+  
+      // Join the user to a real-time room with their UID
+      io.on("connection", (socket) => {
+        socket.join(uid);
+        console.log(`User ${uid} joined real-time updates`);
+      });
+  
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
   });
+  
+
+
+
+
+
+
+
+
+
+
    
   // ** Update by user
    app.put('/tasks/:id',verifyToken, async(req,res)=>{
@@ -178,35 +198,41 @@ const startServer = async () => {
    })
 
 
-    // ** Update Order **
-    app.put("/task/reorder",verifyToken, async (req, res) => {
-      try {
-        const { tasks } = req.body;
-        // 
-        if (!tasks || !Array.isArray(tasks)) {
-          return res.status(400).json({ error: "Invalid task data" });
-        }
-    
-        const bulkUpdates = tasks.map((task) => ({
-          updateOne: {
-            filter: { _id: new ObjectId(task._id) }, 
-            update: { $set: { position: task.position, category: task.category } },
-          },
-        }));
-    
-        if (bulkUpdates.length === 0) {
-          return res.status(400).json({ error: "No valid tasks to update" });
-        }
-    
-        await taskCollection.bulkWrite(bulkUpdates);
-        io.emit("task-updated"); 
-        res.json({ message: "Tasks reordered successfully" });
-    
-      } catch (err) {
-        // console.error("Error updating task order:", err);
-        res.status(500).json({ error: "Failed to reorder tasks" });
+   app.put("/task/reorder", verifyToken, async (req, res) => {
+    try {
+      const { tasks } = req.body;
+      const verifiedUid = req?.user?.uid;
+  
+      if (!tasks || !Array.isArray(tasks)) {
+        return res.status(400).json({ error: "Invalid task data" });
       }
-    });
+  
+      const bulkUpdates = tasks.map((task) => ({
+        updateOne: {
+          filter: { _id: new ObjectId(task._id), uid: verifiedUid },
+          update: { $set: { position: task.position, category: task.category } },
+        },
+      }));
+  
+      if (bulkUpdates.length === 0) {
+        return res.status(400).json({ error: "No valid tasks to update" });
+      }
+  
+      await taskCollection.bulkWrite(bulkUpdates);
+  
+      // Fetch the updated tasks for the specific user
+      const updatedTasks = await taskCollection.find({ uid: verifiedUid }).sort({ position: 1 }).toArray();
+  
+      // Emit real-time updates only to that specific user
+      io.to(verifiedUid).emit("task-updated", updatedTasks);
+  
+      res.json({ message: "Tasks reordered successfully", updatedTasks });
+  
+    } catch (err) {
+      res.status(500).json({ error: "Failed to reorder tasks" });
+    }
+  });
+  
 
 
 
