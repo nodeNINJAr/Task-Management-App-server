@@ -135,29 +135,29 @@ const startServer = async () => {
       }
   });
    
-    // ** GET: Retrieve all tasks for a user **
-    app.get('/tasks',verifyToken, async (req, res) => {
-      const { uid } = req.query;
-      const verifiedUid = req?.user?.uid;
-      //  check is user is real by login
-       if(uid !== verifiedUid){
-            return res.status(403).send({message:"Forbidden Access"})
-       }
-      // 
-      try {
-          const tasks = await taskCollection.find({ uid }).sort({position:1}).toArray();
-          res.json(tasks);
-      } catch (err) {
-          res.status(500).json({ error: 'Failed to fetch tasks' });
-      }
+ // ** GET: Retrieve all tasks for a user ** 
+  app.get('/tasks', verifyToken, async (req, res) => {
+    const { uid } = req.query;
+    const verifiedUid = req?.user?.uid;
+  
+    if (uid !== verifiedUid) {
+      return res.status(403).send({ message: "Forbidden Access" });
+    }
+  
+    try {
+      const tasks = await taskCollection.find({ uid }).sort({ position: 1 }).toArray();
+      res.json(tasks);
+  
+      // Join the user to a real-time room with their UID
+      io.on("connection", (socket) => {
+        socket.join(uid);
+        console.log(`User ${uid} joined real-time updates`);
+      });
+  
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
   });
-   
-
-
-
-
-
-
 
 
 
@@ -189,7 +189,7 @@ const startServer = async () => {
      
    })
 
-
+  // **  Task reorder
    app.put("/task/reorder", verifyToken, async (req, res) => {
     try {
       const { tasks } = req.body;
@@ -226,36 +226,24 @@ const startServer = async () => {
   });
   
 
-  
+    // ** Task delete
     app.delete("/task/:id", verifyToken, async (req, res) => {
       try {
         const id = req?.params?.id;
         const verifiedUid = req?.user?.uid;
+        const query = {_id : new ObjectId(id),  uid: verifiedUid}
+        const deletedTask = await taskCollection.deleteOne(query);
     
-        const deletedTask = await taskCollection.findOneAndDelete({
-          _id: new ObjectId(id),
-          uid: verifiedUid
-        });
-    
-        if (!deletedTask.value) {
+        if (!deletedTask) {
           return res.status(404).json({ error: "Task not found" });
         }
     
-        // Fetch updated tasks and send to the client
-        const updatedTasks = await taskCollection.find({ uid: verifiedUid }).sort({ position: 1 }).toArray();
-        io.to(verifiedUid).emit("task-updated", updatedTasks);
-    
-        res.json({ message: "Task deleted successfully" });
+        res.send(deletedTask);
       } catch (err) {
         res.status(500).json({ error: "Failed to delete task" });
       }
     });
     
-
-
-
-
-
 
 
 
